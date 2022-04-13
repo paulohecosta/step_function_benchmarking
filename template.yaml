@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Sample SAM Template for Step Function Study
+
+Resources:
+  # ROLES
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      RoleName: !Sub '${AWS::StackName}-lambda-role'
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement: 
+          Effect: 'Allow'
+          Principal: 
+            Service: 
+              - 'lambda.amazonaws.com'
+              - 'states.amazonaws.com'
+          Action: 
+            - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+          - PolicyName: AllowLambdaGlobal
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: 'Allow'
+                  Action:
+                    - 'states:*'
+                    - 'lambda:*'
+                    - 'logs:CreateLogGroup'
+                    - 'logs:CreateLogStream'
+                    - 'logs:PutLogEvents'
+                    - 'logs:DescribeLogStreams'
+                  Resource: '*'
+  # API
+  API:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub '${AWS::StackName}-api'
+      StageName: default
+      EndpointConfiguration: REGIONAL
+      Cors:
+        AllowMethods: "'GET,OPTIONS,POST,PUT,DELETE'"
+        AllowHeaders: "'X-Forwarded-For,Access-Control-Allow-Origin,Access-Control-Allow-Credentials,Access-Control-Allow-Methods,Access-Control-Allow-Headers,Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
+        AllowOrigin: "'*'"
+
+  # LAMBDAS
+  LambdaServiceA:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-service-a'
+      CodeUri: ./app/service-a
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        GetInvoke:
+          Type: Api
+          Properties:
+            Path: /service-a
+            Method: get
+            RestApiId: !Ref API
+
+  LambdaServiceB:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-service-b'
+      CodeUri: ./app/service-b
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        GetInvoke:
+          Type: Api
+          Properties:
+            Path: /service-b
+            Method: get
+            RestApiId: !Ref API
+      Environment:
+        Variables:
+          SFUN_ARN: !Ref ServiceBStepFun
+
+  LambdaServiceC:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-service-c'
+      CodeUri: ./app/service-c
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        GetInvoke:
+          Type: Api
+          Properties:
+            Path: /service-c
+            Method: get
+            RestApiId: !Ref API
+      Environment:
+        Variables:
+          SFUN_ARN: !Ref ServiceCStepFun
+
+  MicroServiceA:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-microservice-a'
+      CodeUri: ./app/microserv-a
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+
+  MicroServiceB:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-microservice-b'
+      CodeUri: ./app/microserv-b
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+
+  MicroServiceC:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-microservice-c'
+      CodeUri: ./app/microserv-c
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+
+  MicroServiceD:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-microservice-d'
+      CodeUri: ./app/microserv-d
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+
+  # Step Functions
+  ServiceBStepFun:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub '${AWS::StackName}-sfun-b'
+      StateMachineType: EXPRESS
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "A fake state machine",
+              "StartAt": "StartFakeA",
+              "States": {
+                "StartFakeA": {
+                  "Type": "Wait",
+                  "Seconds": 1,
+                  "Next": "StartFakeB"
+                },
+                "StartFakeB": {
+                  "Type": "Wait",
+                  "Seconds": 1,
+                  "Next": "StartFakeC"
+                },
+                "StartFakeC": {
+                  "Type": "Wait",
+                  "Seconds": 1,
+                  "Next": "StartFakeD"
+                },
+                "StartFakeD": {
+                  "Type": "Wait",
+                  "Seconds": 1,
+                  "Next": "Finish"
+                },
+                "Finish": {
+                  "Type": "Pass",
+                  "End": true
+                }
+              }
+            }
+          - { 
+              MicroServiceArn: !GetAtt MicroServiceA.Arn,
+            }
+      RoleArn: !GetAtt LambdaRole.Arn
+
+  ServiceCStepFun:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub '${AWS::StackName}-sfun-c'
+      StateMachineType: EXPRESS
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "A fake state machine",
+              "StartAt": "StartFakeA",
+              "States": {
+                "StartFakeA": {
+                  "Type": "Task",
+                  "Resource": "${MicroServiceAArn}",
+                  "Next": "StartFakeB"
+                },
+                "StartFakeB": {
+                  "Type": "Task",
+                  "Resource": "${MicroServiceBArn}",
+                  "Next": "StartFakeC"
+                },
+                "StartFakeC": {
+                  "Type": "Task",
+                  "Resource": "${MicroServiceCArn}",
+                  "Next": "StartFakeD"
+                },
+                "StartFakeD": {
+                  "Type": "Task",
+                  "Resource": "${MicroServiceDArn}",
+                  "Next": "Finish"
+                },
+                "Finish": {
+                  "Type": "Pass",
+                  "End": true
+                }
+              }
+            }
+          - { 
+              MicroServiceAArn: !GetAtt MicroServiceA.Arn,
+              MicroServiceBArn: !GetAtt MicroServiceB.Arn,
+              MicroServiceCArn: !GetAtt MicroServiceC.Arn,
+              MicroServiceDArn: !GetAtt MicroServiceD.Arn,
+            }
+      RoleArn: !GetAtt LambdaRole.Arn
+
+  # LOGS
+  LambdaServiceALogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref LambdaServiceA]]
+      RetentionInDays: 5
+
+  LambdaServiceBLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref LambdaServiceB]]
+      RetentionInDays: 5
+
+  LambdaServiceCLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref LambdaServiceC]]
+      RetentionInDays: 5
+
+  MicroServiceALogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref MicroServiceA]]
+      RetentionInDays: 5
+
+  MicroServiceBLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref MicroServiceB]]
+      RetentionInDays: 5
+
+  MicroServiceCLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref MicroServiceC]]
+      RetentionInDays: 5
+
+  MicroServiceDLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref MicroServiceD]]
+      RetentionInDays: 5
